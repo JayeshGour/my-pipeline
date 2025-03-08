@@ -1,23 +1,53 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_IMAGE = 'python:3.9'
+    }
+
     stages {
-        stage('Dev') {
+        stage('Checkout') {
             steps {
-                echo 'I am in Development'
-                sh 'git --version'
+                checkout scm
             }
         }
-      stage('Test') {
+
+        stage('Build Docker Image') {
             steps {
-                echo 'I am in Testing'
-                sh 'docker --version'
+                script {
+                    docker.build('my-python-app')
+                }
             }
         }
-      stage('Prod') {
+
+        stage('Test') {
             steps {
-                echo 'I am in Prod'
+                script {
+                    docker.image('my-python-app').inside {
+                        sh 'pytest'
+                    }
+                }
             }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    docker.image('my-python-app').inside {
+                        sh './deploy.sh'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '**/test-results/*.xml', allowEmptyArchive: true
+            junit '**/test-results/*.xml'
         }
     }
 }
